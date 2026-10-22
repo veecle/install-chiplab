@@ -1,0 +1,73 @@
+name: Setup chiplab-cli
+description: Install chiplab-cli to run firmware on Chiplab's virtual boards.
+author: Veecle
+branding:
+  icon: cpu
+  color: blue
+
+inputs:
+  version:
+    description: chiplab-cli version to install, e.g. `0.1.0`, or `latest`.
+    default: latest
+
+outputs:
+  version:
+    description: Installed chiplab-cli version, e.g. `0.1.0`.
+    value: ${{ steps.install.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install chiplab-cli
+      id: install
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        PLATFORM: ${{ runner.os }}-${{ runner.arch }}
+      run: |
+        set -euo pipefail
+
+        case "$PLATFORM" in
+          Linux-X64) target=x86_64-unknown-linux-musl ;;
+          Linux-ARM64) target=aarch64-unknown-linux-musl ;;
+          macOS-ARM64) target=aarch64-apple-darwin ;;
+          *)
+            echo "::error::Unsupported runner $PLATFORM, expected Linux (X64, ARM64) or macOS (ARM64)"
+            exit 1
+            ;;
+        esac
+
+        repo=https://github.com/veecle/chiplab-cli
+        curl_opts=(--fail --silent --show-error --proto '=https' --retry 3)
+
+        # Resolve `latest` once, so the archive and checksums come from the same release.
+        if [ "$VERSION" = latest ]; then
+          tag="$(curl "${curl_opts[@]}" --output /dev/null --write-out '%{redirect_url}' "$repo/releases/latest")"
+          tag="${tag##*/}"
+        else
+          tag="v${VERSION#v}"
+        fi
+        if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
+          echo "::error::Invalid chiplab-cli version '$VERSION' (resolved to '$tag')"
+          exit 1
+        fi
+
+        archive="chiplab-cli-$target.tar.gz"
+        url="$repo/releases/download/$tag"
+        cd "$(mktemp -d "$RUNNER_TEMP/chiplab-cli.XXXXXX")"
+        curl "${curl_opts[@]}" --location --remote-name "$url/$archive" --remote-name "$url/sha256sums.txt"
+
+        # Check this exact archive: `--ignore-missing` would pass if it were not listed.
+        sums="$(awk -v file="$archive" '$2 == file' sha256sums.txt)"
+        if [ -z "$sums" ]; then
+          echo "::error::$archive is not listed in the $tag sha256sums.txt"
+          exit 1
+        fi
+        shasum -a 256 --check <<< "$sums"
+
+        mkdir bin
+        tar -xzf "$archive" -C bin
+        bin/chiplab-cli --version
+
+        echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+        echo "$PWD/bin" >> "$GITHUB_PATH"

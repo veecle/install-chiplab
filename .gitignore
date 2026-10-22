@@ -1,0 +1,6 @@
+.direnv
+.env
+
+# nix build output symlinks
+result
+result-*
