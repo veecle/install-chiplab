@@ -1,11 +1,11 @@
-# chiplab-action
+# install-chiplab
 
 Install [chiplab-cli](https://github.com/veecle/chiplab-cli) in GitHub Actions, so your CI can run firmware on [Chiplab](https://chiplab.veecle.ai)'s virtual boards.
 
 ## Usage
 
 ```yaml
-- uses: veecle/chiplab-action@v1
+- uses: veecle/install-chiplab@v1
 - run: chiplab-cli --help
 ```
 
@@ -24,7 +24,7 @@ jobs:
 
       # Build your firmware here.
 
-      - uses: veecle/chiplab-action@v1
+      - uses: veecle/install-chiplab@v1
 
       - run: |
           chiplab-cli run-test-suite \
